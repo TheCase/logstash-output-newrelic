@@ -34,17 +34,19 @@ class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
 
   public
   def receive(event)
+    
     return unless output?(event)
     if event == LogStash::SHUTDOWN
       finished
       return
     end
+    
     this_event = event.to_hash
     output_event = Hash.new
     
-    # Send the event over http(s) to the New Relic Insights REST API
+    # URL to send event over http(s) to the New Relic Insights REST API
     url = URI.parse("#{@proto}://insights-collector.newrelic.com/v1/accounts/#{@account_id}/events")
-    # @logger.debug("New Relic URL", :url => url)
+    @logger.debug("New Relic URL:", :url => url)
     if proxy_host.nil? || proxy_host.empty?
       http = Net::HTTP.new(url.host, url.port)
     else
@@ -80,12 +82,12 @@ class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
     output_event['eventType'] = @event_type
         
     request.body = output_event.to_json
-    @logger.debug("Request", :request_body => request.body)
+    @logger.debug("Request Body:", :request_body => request.body)
     response = http.request(request)
     if response.is_a?(Net::HTTPSuccess)
-      @logger.debug("Event sent to New Relic SUCCEEDED!", :response_code => response.code)
+      @logger.debug("Event sent to New Relic SUCCEEDED! Response Code:", :response_code => response.code)
     else
-      @logger.warn("Event sent to New Relic FAILED.", :error => response.error!)
+      @logger.warn("Event sent to New Relic FAILED. Error:", :error => response.error!)
     end
   end # def receive
 end # class LogStash::Outputs::NewRelic
