@@ -21,7 +21,7 @@ class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
   config :proxy_host, :validate => :string
   config :proxy_port, :validate => :number
   config :proxy_user, :validate => :string
-  config :proxy_password, :validate => :password
+  config :proxy_password, :validate => :password, :default => ""
 
   # New Relic Insights Reserved Words
   # https://docs.newrelic.com/docs/insights/new-relic-insights/adding-querying-data/inserting-custom-events#keywords
@@ -47,11 +47,7 @@ class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
     # URL to send event over http(s) to the New Relic Insights REST API
     url = URI.parse("#{@proto}://insights-collector.newrelic.com/v1/accounts/#{@account_id}/events")
     @logger.debug("New Relic URL:", :url => url)
-    if proxy_host.nil? || proxy_host.empty?
-      http = Net::HTTP.new(url.host, url.port)
-    else
-      http = Net::HTTP.new(url.host, url.port, @proxy_host, @proxy_port, @proxy_user, @proxy_password.value)
-    end
+    http = Net::HTTP.new(url.host, url.port, @proxy_host, @proxy_port, @proxy_user, @proxy_password.value)
     if url.scheme == 'https'
       http.use_ssl = true
       http.verify_mode = OpenSSL::SSL::VERIFY_NONE
