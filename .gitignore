@@ -5,3 +5,8 @@
 .config
 Gemfile.lock
 vendor
+.rspec
+
+bin/logstash-newrelic.conf copy.template
+
+spec/spec_helper.rb

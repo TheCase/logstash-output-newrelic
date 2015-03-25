@@ -2,34 +2,55 @@
 require "json"
 require "logstash/outputs/base"
 require "logstash/namespace"
-require "net/http"
-require "net/https"
-require "stud/buffer"
+require "net/http" # Connectivity back to New Relic Insights
+require "net/https" # Connectivity back to New Relic Insights
+require "stud/buffer" # For buffering events being sent
 require "time"
 require "uri"
 
+# This output sends logstash events to New Relic Insights as custom events.
+#
+# You can learn more about New Relic Insights here:
+# https://docs.newrelic.com/docs/insights/new-relic-insights/understanding-insights/new-relic-insights
 class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
   include Stud::Buffer
 
   config_name "newrelic"
   milestone 1
 
+  # Your New Relic account ID. This is the 5 or 6-digit number found in the URL when you are logged into New Relic:
+  # https://rpm.newrelic.com/accounts/[account_id]/... 
   config :account_id, :validate => :string, :required => true
+  
+  # Your Insights Insert Key. You will need to generate one if you haven't already, as described here:
+  # https://docs.newrelic.com/docs/insights/new-relic-insights/adding-querying-data/inserting-custom-events-insights-api#register
   config :insert_key, :validate => :string, :required => true
+  
+  # The name for your event type. Use alphanumeric characters only.
+  # If left out, your events will be stored under "logstashEvent".
   config :event_type, :validate => :string, :default => "logstashEvent"
-
-  # Should the log action be sent over https instead of plain http
+  
+  # Should the log events be sent to Insights over https instead of plain http (typically yes).
   config :proto, :validate => :string, :default => "https"
-
-  # Proxy Info - all optional
+  
+  # Proxy info - all optional
+  # If using a proxy, only proxy_host is required.
   config :proxy_host, :validate => :string
-  config :proxy_port, :validate => :number
+  # Proxy_port will default to port 80 if left out.
+  config :proxy_port, :validate => :number, :default => 80
+  # Proxy_user should be left out if connecting to your proxy unauthenticated.
   config :proxy_user, :validate => :string
+  # Proxy_password should be left out if connecting to your proxy unauthenticated.
   config :proxy_password, :validate => :password, :default => ""
 
   # Batch Processing - all optional
+  # This plugin uses the New Relic Insights REST API to send data.
+  # To make efficient REST API calls, we will buffer a certain number of events before flushing that out to Insights.
   config :batch, :validate => :boolean, :default => true
+  # This setting controls how many events will be buffered before sending a batch of events.
   config :batch_events, :validate => :number, :default => 10
+  # This setting controls how long the output will wait before sending a batch of a events, 
+  # should the minimum specified in batch_events not be met yet.
   config :batch_timeout, :validate => :number, :default => 5
 
   # New Relic Insights Reserved Words
@@ -83,7 +104,6 @@ class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
   }
 
   public
-
   def register
     # URL to send event over http(s) to the New Relic Insights REST API
     @url = URI.parse("#{@proto}://insights-collector.newrelic.com/v1/accounts/#{@account_id}/events")
@@ -100,7 +120,7 @@ class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
       :logger => @logger
       )
     end
-  end #def register
+  end # def register
 
   public
   def receive(event)
@@ -118,6 +138,8 @@ class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
   end # def receive
 
   public
+  # Insights REST API handles multiple events the same way as a single event. Score!
+  # All we need to do on 'flush' is send the contents of the events buffer.
   def flush(events, teardown=false)
     @logger.debug("Sending batch of #{events.size} events to insights")
     send_to_insights(events)
@@ -137,17 +159,17 @@ class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
     # Setting eventType to what's in the config
     output_event['eventType'] = @event_type
 
-    # Convert timestamp to Insights-compliant form if it exists
-    # Tomcat's timestamp is right except for a trailing ".###"
+    # Convert timestamp to Insights-compliant form if it exists.
+    # Tomcat's timestamp is correct except for a trailing ".###"
     begin
       if this_event.has_key?('timestamp')
         # If it's just a whole number, send it as-is to Insights.
         if this_event['timestamp'] =~ /\A\d+\z/
           output_event['timestamp'] = this_event['timestamp']
-          # Tomcat's timestamp is right except for a trailing ".###"
+        # Tomcat's timestamp is right except for a trailing ".###"
         elsif this_event['timestamp'] =~ /\A\d+\.\d+\z/
           output_event['timestamp'] = this_event['timestamp'].split('.')[0]
-          # If in any other form, attempt to parse the date/time and convert to seconds since epoch
+        # If in any other form, attempt to parse the date/time and convert to seconds since epoch
         else
           timestamp_parsed = Time.parse(this_event['timestamp'])
           output_event['timestamp'] = timestamp_parsed.to_i
@@ -179,7 +201,8 @@ class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
     return output_event
   end # def parse_event
 
-  # Can handle a single event or batched events
+  # Send event(s) to the NR Insights REST API.
+  # Can handle a single event or batched events.
   def send_to_insights(event)
     http = Net::HTTP.new(@url.host, @url.port, @proxy_host, @proxy_port, @proxy_user, @proxy_password.value)
     if @url.scheme == 'https'

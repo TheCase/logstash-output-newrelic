@@ -1,14 +1,12 @@
 Gem::Specification.new do |s|
 
   s.name            = "logstash-output-newrelic"
-  s.version         = "0.1.1"
+  s.version         = "0.9.0"
   s.summary         = "New Relic Insights output plugin for Logstash"
   s.description     = "Use logstash to ship log events to New Relic Insights. This gem is a logstash plugin required to be installed on top of the Logstash core pipeline using $LS_HOME/bin/plugin install gemname. This gem is not a stand-alone program."
-
   s.authors         = ["The Chocolate Factory"]
   s.email           = "info@chocolatefirm.com"
   s.homepage        = "http://www.chocolatefirm.com"
-  
   s.licenses        = ["MIT"]
   s.require_paths   = ["lib"]
   
@@ -26,4 +24,3 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'logstash-devutils'
 
 end
-
