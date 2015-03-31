@@ -100,7 +100,7 @@ class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
     "week" => "backticks",
     "weeks" => "backticks",
     "where" => "backticks",
-    "with" => "backticks"
+    "with" => "backticks",
   }
 
   public
@@ -152,42 +152,26 @@ class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
   end # def teardown
   
   # Turn event into an Insights-compliant event
+  public
   def parse_event(event)
     this_event = event.to_hash
     output_event = Hash.new
-
+    
     # Setting eventType to what's in the config
     output_event['eventType'] = @event_type
-
-    # Convert timestamp to Insights-compliant form if it exists.
-    # Tomcat's timestamp is correct except for a trailing ".###"
-    begin
-      if this_event.has_key?('timestamp')
-        # If it's just a whole number, send it as-is to Insights.
-        if this_event['timestamp'] =~ /\A\d+\z/
-          output_event['timestamp'] = this_event['timestamp']
-        # Tomcat's timestamp is right except for a trailing ".###"
-        elsif this_event['timestamp'] =~ /\A\d+\.\d+\z/
-          output_event['timestamp'] = this_event['timestamp'].split('.')[0]
-        # If in any other form, attempt to parse the date/time and convert to seconds since epoch
-        else
-          timestamp_parsed = Time.parse(this_event['timestamp'])
-          output_event['timestamp'] = timestamp_parsed.to_i
-        end
-      end
-    rescue Exception => e
-      # If it throws an exception, likely because date parsing didn't go so well, do nothing
-      @logger.debug("Exception occurred when converting timestamp. Exception:", :exception => e.message)
-    end
+    
+    # Setting timestamp to what logstash reports
+    timestamp_parsed = Time.parse(event.timestamp.to_s)
+    output_event['timestamp'] = timestamp_parsed.to_i
 
     # Search event's attribute names for reserved words, replace with 'compliant' versions
     # Storing 'compliant' key names in "EVENT_KEYS" to minimize time spent doing this
     this_event.each_key do |event_key|
       if RESWORDS.has_key?(event_key)
         @logger.debug("Reserved word found", :reserved_word => event_key)
-        if RESWORDS[event_key] = "moved"
+        if RESWORDS[event_key] == "moved"
           proper_name = event_key + "_moved"
-        elsif RESWORDS[event_key] = "backticks"
+        elsif RESWORDS[event_key] == "backticks"
           proper_name = "`" + event_key + "`"
         else
           proper_name = RESWORDS[event_key]
@@ -197,7 +181,6 @@ class LogStash::Outputs::NewRelic < LogStash::Outputs::Base
       end
       output_event[proper_name] = this_event[event_key]
     end
-
     return output_event
   end # def parse_event
 
